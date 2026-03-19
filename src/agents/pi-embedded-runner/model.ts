@@ -2,6 +2,7 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.js";
+import { validateProviderBaseUrl } from "../../config/types.models.js";
 import {
   prepareProviderDynamicModel,
   resolveProviderRuntimePlugin,
@@ -160,6 +161,16 @@ export function buildInlineProviderModels(
     const providerHeaders = sanitizeModelHeaders(entry?.headers, {
       stripSecretRefMarkers: true,
     });
+    if (entry?.baseUrl) {
+      const urlCheck = validateProviderBaseUrl(entry.baseUrl);
+      if (!urlCheck.valid) {
+        return [];
+      }
+      if (urlCheck.warning) {
+        // eslint-disable-next-line no-console
+        console.warn(`[model-provider] ${trimmed}: ${urlCheck.warning}`);
+      }
+    }
     return (entry?.models ?? []).map((model) => ({
       ...model,
       provider: trimmed,

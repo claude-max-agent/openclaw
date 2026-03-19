@@ -1,11 +1,21 @@
 import type { DatabaseSync } from "node:sqlite";
 
+const SAFE_TABLE_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function validateTableName(name: string, label: string): void {
+  if (!SAFE_TABLE_NAME_RE.test(name)) {
+    throw new Error(`Invalid ${label}: ${JSON.stringify(name)}. Must match ${SAFE_TABLE_NAME_RE}.`);
+  }
+}
+
 export function ensureMemoryIndexSchema(params: {
   db: DatabaseSync;
   embeddingCacheTable: string;
   ftsTable: string;
   ftsEnabled: boolean;
 }): { ftsAvailable: boolean; ftsError?: string } {
+  validateTableName(params.embeddingCacheTable, "embeddingCacheTable");
+  validateTableName(params.ftsTable, "ftsTable");
   params.db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
@@ -88,6 +98,7 @@ function ensureColumn(
   column: string,
   definition: string,
 ): void {
+  validateTableName(column, "column");
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (rows.some((row) => row.name === column)) {
     return;

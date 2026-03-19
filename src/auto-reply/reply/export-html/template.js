@@ -1773,12 +1773,23 @@
       image(token) {
         return renderMarkdownImage(token);
       },
+      // Sanitize link href to block javascript: and data: URLs (XSS prevention)
+      link(token) {
+        const href = token.href || "";
+        const safeHref = /^\s*(javascript|data|vbscript):/i.test(href) ? "#" : escapeHtmlAttr(href);
+        const title = token.title ? ` title="${escapeHtmlAttr(token.title)}"` : "";
+        const text = token.tokens ? this.parser.parseInline(token.tokens) : escapeHtml(token.text);
+        return `<a href="${safeHref}"${title} rel="noopener noreferrer">${text}</a>`;
+      },
     },
   });
 
-  // Simple marked parse (escaping handled in renderers)
+  // Safe marked parse with post-processing sanitization
   function safeMarkedParse(text) {
-    return marked.parse(text);
+    let html = marked.parse(text);
+    // Strip any residual event handler attributes as defense-in-depth
+    html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, "");
+    return html;
   }
 
   // Search input

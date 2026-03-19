@@ -72,6 +72,31 @@ export type ModelProviderConfig = {
   models: ModelDefinitionConfig[];
 };
 
+/**
+ * Validate that a provider baseUrl uses a safe protocol.
+ * Blocks non-HTTP(S) schemes and warns on non-HTTPS in production.
+ */
+export function validateProviderBaseUrl(baseUrl: string): { valid: boolean; warning?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    return { valid: false, warning: `Invalid URL: ${baseUrl}` };
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return { valid: false, warning: `Unsupported protocol: ${parsed.protocol}` };
+  }
+  const isLocalhost =
+    parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
+  if (parsed.protocol === "http:" && !isLocalhost) {
+    return {
+      valid: true,
+      warning: `Non-HTTPS baseUrl "${baseUrl}" — API keys may be transmitted in cleartext`,
+    };
+  }
+  return { valid: true };
+}
+
 export type BedrockDiscoveryConfig = {
   enabled?: boolean;
   region?: string;
