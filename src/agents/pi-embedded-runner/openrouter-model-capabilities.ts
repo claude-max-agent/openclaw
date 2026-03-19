@@ -29,6 +29,7 @@ const log = createSubsystemLogger("openrouter-model-capabilities");
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const FETCH_TIMEOUT_MS = 10_000;
 const DISK_CACHE_FILENAME = "openrouter-models.json";
+const CACHE_TTL_MS = 24 * 60 * 60 * 1_000; // 24 hours
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,6 +73,7 @@ export interface OpenRouterModelCapabilities {
 
 interface DiskCachePayload {
   models: Record<string, OpenRouterModelCapabilities>;
+  updatedAt?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +96,7 @@ function writeDiskCache(map: Map<string, OpenRouterModelCapabilities>): void {
     }
     const payload: DiskCachePayload = {
       models: Object.fromEntries(map),
+      updatedAt: Date.now(),
     };
     writeFileSync(resolveDiskCachePath(), JSON.stringify(payload), "utf-8");
   } catch (err: unknown) {
@@ -127,8 +130,14 @@ function readDiskCache(): Map<string, OpenRouterModelCapabilities> | undefined {
     if (!payload || typeof payload !== "object") {
       return undefined;
     }
-    const models = (payload as DiskCachePayload).models;
+    const cachePayload = payload as DiskCachePayload;
+    const models = cachePayload.models;
     if (!models || typeof models !== "object") {
+      return undefined;
+    }
+    // Expire cache after TTL
+    if (cachePayload.updatedAt && Date.now() - cachePayload.updatedAt > CACHE_TTL_MS) {
+      log.debug("OpenRouter disk cache expired (TTL exceeded)");
       return undefined;
     }
     const map = new Map<string, OpenRouterModelCapabilities>();

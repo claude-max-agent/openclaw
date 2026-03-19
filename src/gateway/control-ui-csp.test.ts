@@ -15,4 +15,10 @@ describe("buildControlUiCspHeader", () => {
     expect(csp).toContain("https://fonts.googleapis.com");
     expect(csp).toContain("font-src 'self' https://fonts.gstatic.com");
   });
+
+  it("includes form-action and upgrade-insecure-requests directives", () => {
+    const csp = buildControlUiCspHeader();
+    expect(csp).toContain("form-action 'none'");
+    expect(csp).toContain("upgrade-insecure-requests");
+  });
 });

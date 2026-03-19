@@ -29,7 +29,7 @@ export interface RateLimitConfig {
   windowMs?: number;
   /** Lockout duration in milliseconds after the limit is exceeded.  @default 300_000 (5 min) */
   lockoutMs?: number;
-  /** Exempt loopback (localhost) addresses from rate limiting.  @default true */
+  /** Exempt loopback (localhost) addresses from rate limiting.  @default false */
   exemptLoopback?: boolean;
   /** Background prune interval in milliseconds; set <= 0 to disable auto-prune.  @default 60_000 */
   pruneIntervalMs?: number;
@@ -96,7 +96,7 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
   const maxAttempts = config?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const windowMs = config?.windowMs ?? DEFAULT_WINDOW_MS;
   const lockoutMs = config?.lockoutMs ?? DEFAULT_LOCKOUT_MS;
-  const exemptLoopback = config?.exemptLoopback ?? true;
+  const exemptLoopback = config?.exemptLoopback ?? false;
   const pruneIntervalMs = config?.pruneIntervalMs ?? PRUNE_INTERVAL_MS;
 
   const entries = new Map<string, RateLimitEntry>();
