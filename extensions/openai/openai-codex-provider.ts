@@ -28,7 +28,7 @@ import {
 } from "./shared.js";
 
 const PROVIDER_ID = "openai-codex";
-const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+const OPENAI_CODEX_BASE_URL = "https://api.openai.com/v1";
 const OPENAI_CODEX_GPT_54_MODEL_ID = "gpt-5.4";
 const OPENAI_CODEX_GPT_54_CONTEXT_TOKENS = 1_050_000;
 const OPENAI_CODEX_GPT_54_MAX_TOKENS = 128_000;
@@ -62,7 +62,11 @@ function isOpenAICodexBaseUrl(baseUrl?: string): boolean {
   if (!trimmed) {
     return false;
   }
-  return /^https?:\/\/chatgpt\.com\/backend-api\/?$/i.test(trimmed);
+  // Block non-official ChatGPT backend API access (ToS violation)
+  if (/^https?:\/\/chatgpt\.com\/backend-api\/?$/i.test(trimmed)) {
+    return false;
+  }
+  return /^https?:\/\/api\.openai\.com\/v1\/?$/i.test(trimmed);
 }
 
 function normalizeCodexTransport(model: ProviderRuntimeModel): ProviderRuntimeModel {

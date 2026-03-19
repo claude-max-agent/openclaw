@@ -3,7 +3,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "../agents/auth-profiles.js";
-import { withEnvAsync } from "../test-utils/env.js";
 import { createProviderUsageFetch, makeResponse } from "../test-utils/provider-usage-fetch.js";
 import {
   formatUsageReportLines,
@@ -310,40 +309,28 @@ describe("provider usage loading", () => {
     );
   });
 
-  it("falls back to claude.ai web usage when OAuth scope is missing", async () => {
-    await withEnvAsync({ CLAUDE_AI_SESSION_KEY: "sk-ant-web-1" }, async () => {
-      const mockFetch = createProviderUsageFetch(async (url) => {
-        if (url.includes("api.anthropic.com/api/oauth/usage")) {
-          return makeResponse(403, {
-            type: "error",
-            error: {
-              type: "permission_error",
-              message: "OAuth token does not meet scope requirement user:profile",
-            },
-          });
-        }
-        if (url.includes("claude.ai/api/organizations/org-1/usage")) {
-          return makeResponse(200, {
-            five_hour: { utilization: 20, resets_at: "2026-01-07T01:00:00Z" },
-            seven_day: { utilization: 40, resets_at: "2026-01-08T01:00:00Z" },
-            seven_day_opus: { utilization: 5 },
-          });
-        }
-        if (url.includes("claude.ai/api/organizations")) {
-          return makeResponse(200, [{ uuid: "org-1", name: "Test" }]);
-        }
-        return makeResponse(404, "not found");
-      });
-
-      const summary = await loadUsageWithAuth(
-        loadProviderUsageSummary,
-        [{ provider: "anthropic", token: "sk-ant-oauth-1" }],
-        mockFetch,
-      );
-
-      const claude = expectSingleAnthropicProvider(summary);
-      expect(claude?.windows.some((w) => w.label === "5h")).toBe(true);
-      expect(claude?.windows.some((w) => w.label === "Week")).toBe(true);
+  it("returns error when OAuth scope is missing (no web session fallback)", async () => {
+    const mockFetch = createProviderUsageFetch(async (url) => {
+      if (url.includes("api.anthropic.com/api/oauth/usage")) {
+        return makeResponse(403, {
+          type: "error",
+          error: {
+            type: "permission_error",
+            message: "OAuth token does not meet scope requirement user:profile",
+          },
+        });
+      }
+      return makeResponse(404, "not found");
     });
+
+    const summary = await loadUsageWithAuth(
+      loadProviderUsageSummary,
+      [{ provider: "anthropic", token: "sk-ant-oauth-1" }],
+      mockFetch,
+    );
+
+    const claude = expectSingleAnthropicProvider(summary);
+    expect(claude?.error).toContain("HTTP 403");
+    expect(claude?.windows).toHaveLength(0);
   });
 });
