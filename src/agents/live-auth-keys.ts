@@ -1,6 +1,5 @@
 import { normalizeProviderId } from "./model-selection.js";
 
-const KEY_SPLIT_RE = /[\s,;]+/g;
 const GOOGLE_LIVE_SINGLE_KEY = "OPENCLAW_LIVE_GEMINI_KEY";
 
 const PROVIDER_PREFIX_OVERRIDES: Record<string, string> = {
@@ -43,31 +42,6 @@ const PROVIDER_API_KEY_CONFIG: Record<string, Omit<ProviderApiKeyConfig, "fallba
   },
 };
 
-function parseKeyList(raw?: string | null): string[] {
-  if (!raw) {
-    return [];
-  }
-  return raw
-    .split(KEY_SPLIT_RE)
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
-function collectEnvPrefixedKeys(prefix: string): string[] {
-  const keys: string[] = [];
-  for (const [name, value] of Object.entries(process.env)) {
-    if (!name.startsWith(prefix)) {
-      continue;
-    }
-    const trimmed = value?.trim();
-    if (!trimmed) {
-      continue;
-    }
-    keys.push(trimmed);
-  }
-  return keys;
-}
-
 function resolveProviderApiKeyConfig(provider: string): ProviderApiKeyConfig {
   const normalized = normalizeProviderId(provider);
   const custom = PROVIDER_API_KEY_CONFIG[normalized];
@@ -100,43 +74,27 @@ function resolveProviderApiKeyConfig(provider: string): ProviderApiKeyConfig {
 export function collectProviderApiKeys(provider: string): string[] {
   const config = resolveProviderApiKeyConfig(provider);
 
+  // Priority: live single key > primary env var > fallback vars
+  // Only a single key per provider is supported to prevent
+  // rate limit bypass via key pooling (ToS compliance).
   const forcedSingle = config.liveSingle ? process.env[config.liveSingle]?.trim() : undefined;
   if (forcedSingle) {
     return [forcedSingle];
   }
 
-  const fromList = parseKeyList(config.listVar ? process.env[config.listVar] : undefined);
   const primary = config.primaryVar ? process.env[config.primaryVar]?.trim() : undefined;
-  const fromPrefixed = config.prefixedVar ? collectEnvPrefixedKeys(config.prefixedVar) : [];
+  if (primary) {
+    return [primary];
+  }
 
-  const fallback = config.fallbackVars
-    .map((envVar) => process.env[envVar]?.trim())
-    .filter(Boolean) as string[];
-
-  const seen = new Set<string>();
-
-  const add = (value?: string) => {
-    if (!value) {
-      return;
+  for (const envVar of config.fallbackVars) {
+    const value = process.env[envVar]?.trim();
+    if (value) {
+      return [value];
     }
-    if (seen.has(value)) {
-      return;
-    }
-    seen.add(value);
-  };
-
-  for (const value of fromList) {
-    add(value);
-  }
-  add(primary);
-  for (const value of fromPrefixed) {
-    add(value);
-  }
-  for (const value of fallback) {
-    add(value);
   }
 
-  return Array.from(seen);
+  return [];
 }
 
 export function collectAnthropicApiKeys(): string[] {

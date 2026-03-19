@@ -166,6 +166,13 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     return;
   }
 
+  if (opts.allowUnconfigured) {
+    gatewayLog.warn(
+      "WARNING: --allow-unconfigured bypasses gateway.mode=local check. " +
+        "Ensure authentication is configured (--auth token/password) to prevent unauthorized access.",
+    );
+  }
+
   setConsoleTimestampPrefix(true);
   setVerbose(Boolean(opts.verbose));
   if (opts.claudeCliLogs) {

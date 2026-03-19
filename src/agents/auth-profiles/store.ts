@@ -495,6 +495,14 @@ export function saveAuthProfileStore(store: AuthProfileStore, agentDir?: string)
         delete sanitized.token;
         return [profileId, sanitized];
       }
+      // Redact plaintext API keys: store only a reference hint, not the full key
+      if (credential.type === "api_key" && !credential.keyRef && credential.key) {
+        const sanitized = { ...credential } as Record<string, unknown>;
+        // Store masked hint for identification (last 4 chars)
+        sanitized.keyHint = `...${credential.key.slice(-4)}`;
+        delete sanitized.key;
+        return [profileId, sanitized];
+      }
       return [profileId, credential];
     }),
   ) as AuthProfileStore["profiles"];
@@ -506,4 +514,12 @@ export function saveAuthProfileStore(store: AuthProfileStore, agentDir?: string)
     usageStats: store.usageStats ?? undefined,
   } satisfies AuthProfileStore;
   saveJsonFile(authPath, payload);
+
+  // Enforce strict file permissions (owner read/write only) to prevent
+  // other processes from reading plaintext credentials (CVE-2026-25253 mitigation)
+  try {
+    fs.chmodSync(authPath, 0o600);
+  } catch {
+    // Best-effort: Windows may not support chmod
+  }
 }
