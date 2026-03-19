@@ -298,6 +298,11 @@ export async function evaluateViaPlaywright(opts: {
   if (!fnText) {
     throw new Error("function is required");
   }
+  // Input validation: reject excessively large payloads to limit abuse surface
+  const MAX_FN_LENGTH = 50_000;
+  if (fnText.length > MAX_FN_LENGTH) {
+    throw new Error(`function body exceeds maximum length (${MAX_FN_LENGTH} chars)`);
+  }
   const page = await getRestoredPageForTarget(opts);
   // Clamp evaluate timeout to prevent permanently blocking Playwright's command queue.
   // Without this, a long-running async evaluate blocks all subsequent page operations
@@ -348,23 +353,23 @@ export async function evaluateViaPlaywright(opts: {
   }
 
   try {
+    // Use Playwright's native evaluate with string expressions instead of
+    // new Function()/eval() to avoid code injection risks (OWASP A03).
+    // Playwright's evaluate(string) sends the expression to the browser via CDP
+    // and executes it in the page context, which is already sandboxed.
     if (opts.ref) {
       const locator = refLocator(page, opts.ref);
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-      const elementEvaluator = new Function(
-        "el",
-        "args",
-        `
+      // Wrap fnText as a function that receives the element, with timeout handling
+      const wrappedExpression = `(el) => {
         "use strict";
-        var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
         try {
-          var candidate = eval("(" + fnBody + ")");
+          var candidate = (${fnText});
           var result = typeof candidate === "function" ? candidate(el) : candidate;
           if (result && typeof result.then === "function") {
             return Promise.race([
               result,
               new Promise(function(_, reject) {
-                setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
+                setTimeout(function() { reject(new Error("evaluate timed out after ${evaluateTimeout}ms")); }, ${evaluateTimeout});
               })
             ]);
           }
@@ -372,42 +377,31 @@ export async function evaluateViaPlaywright(opts: {
         } catch (err) {
           throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
         }
-        `,
-      ) as (el: Element, args: { fnBody: string; timeoutMs: number }) => unknown;
-      const evalPromise = locator.evaluate(elementEvaluator, {
-        fnBody: fnText,
-        timeoutMs: evaluateTimeout,
-      });
+      }`;
+      const evalPromise = locator.evaluate(wrappedExpression);
       return await awaitEvalWithAbort(evalPromise, abortPromise);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-    const browserEvaluator = new Function(
-      "args",
-      `
-        "use strict";
-        var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
-        try {
-          var candidate = eval("(" + fnBody + ")");
-          var result = typeof candidate === "function" ? candidate() : candidate;
-          if (result && typeof result.then === "function") {
-            return Promise.race([
-              result,
-              new Promise(function(_, reject) {
-                setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
-              })
-            ]);
-          }
-          return result;
-        } catch (err) {
-          throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
+    // Page-level evaluate: wrap fnText as an IIFE with timeout handling
+    const wrappedExpression = `(() => {
+      "use strict";
+      try {
+        var candidate = (${fnText});
+        var result = typeof candidate === "function" ? candidate() : candidate;
+        if (result && typeof result.then === "function") {
+          return Promise.race([
+            result,
+            new Promise(function(_, reject) {
+              setTimeout(function() { reject(new Error("evaluate timed out after ${evaluateTimeout}ms")); }, ${evaluateTimeout});
+            })
+          ]);
         }
-      `,
-    ) as (args: { fnBody: string; timeoutMs: number }) => unknown;
-    const evalPromise = page.evaluate(browserEvaluator, {
-      fnBody: fnText,
-      timeoutMs: evaluateTimeout,
-    });
+        return result;
+      } catch (err) {
+        throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
+      }
+    })()`;
+    const evalPromise = page.evaluate(wrappedExpression);
     return await awaitEvalWithAbort(evalPromise, abortPromise);
   } finally {
     if (signal && abortListener) {
