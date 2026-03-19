@@ -263,6 +263,9 @@ export function resolveGatewayAuth(params: {
   } else if (token) {
     mode = "token";
     modeSource = "token";
+  } else if (trustedProxy) {
+    mode = "trusted-proxy";
+    modeSource = "default";
   } else {
     mode = "token";
     modeSource = "default";

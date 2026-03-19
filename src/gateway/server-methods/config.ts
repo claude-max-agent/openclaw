@@ -1,4 +1,5 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
+import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
@@ -538,9 +539,21 @@ export const configHandlers: GatewayRequestHandlers = {
       return;
     }
     const configPath = createConfigIO().configPath;
+    // Validate configPath: must be absolute and not contain path traversal
+    const resolved = path.resolve(configPath);
+    if (!path.isAbsolute(resolved) || resolved !== path.normalize(resolved)) {
+      respond(true, { ok: false, path: configPath, error: "invalid config path" }, undefined);
+      return;
+    }
     const platform = process.platform;
+    const ALLOWED_COMMANDS = ["open", "start", "xdg-open"] as const;
     const cmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
-    exec(`${cmd} ${JSON.stringify(configPath)}`, (err) => {
+    if (!(ALLOWED_COMMANDS as readonly string[]).includes(cmd)) {
+      respond(true, { ok: false, path: configPath, error: "unsupported platform" }, undefined);
+      return;
+    }
+    // Use execFile instead of exec to avoid shell injection
+    execFile(cmd, [resolved], (err) => {
       if (err) {
         respond(true, { ok: false, path: configPath, error: err.message }, undefined);
         return;

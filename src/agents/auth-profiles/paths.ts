@@ -23,6 +23,12 @@ export function resolveAuthStorePathForDisplay(agentDir?: string): string {
 
 export function ensureAuthStoreFile(pathname: string) {
   if (fs.existsSync(pathname)) {
+    // Ensure existing files have strict permissions
+    try {
+      fs.chmodSync(pathname, 0o600);
+    } catch {
+      // Best-effort: Windows may not support chmod
+    }
     return;
   }
   const payload: AuthProfileStore = {
@@ -30,4 +36,10 @@ export function ensureAuthStoreFile(pathname: string) {
     profiles: {},
   };
   saveJsonFile(pathname, payload);
+  // Set strict file permissions on creation (owner read/write only)
+  try {
+    fs.chmodSync(pathname, 0o600);
+  } catch {
+    // Best-effort: Windows may not support chmod
+  }
 }
