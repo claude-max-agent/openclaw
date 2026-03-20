@@ -1036,6 +1036,13 @@ export async function startGatewayServer(
 
   const canvasHostServerPort = (canvasHostServer as CanvasHostServer | null)?.port;
 
+  // Safety gateway 初期化（トレーディングBot暴走防止）
+  const { createSafetyGateway } = await import("../safety/gateway-integration.js");
+  const safetyGateway = createSafetyGateway(
+    { enabled: true },
+    { warn: (msg) => log.warn(msg), error: (msg) => log.error(msg) },
+  );
+
   const gatewayRequestContext: import("./server-methods/types.js").GatewayRequestContext = {
     deps,
     cron,
@@ -1095,6 +1102,7 @@ export async function startGatewayServer(
     markChannelLoggedOut,
     wizardRunner,
     broadcastVoiceWakeChanged,
+    safetyGateway,
   };
 
   // Store the gateway context as a fallback for plugin subagent dispatch

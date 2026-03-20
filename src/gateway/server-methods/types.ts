@@ -98,6 +98,8 @@ export type GatewayRequestContext = {
     prompter: import("../../wizard/prompts.js").WizardPrompter,
   ) => Promise<void>;
   broadcastVoiceWakeChanged: (triggers: string[]) => void;
+  /** セーフティゲートウェイ（トレーディングBot暴走防止） */
+  safetyGateway?: import("../../safety/gateway-integration.js").SafetyGateway;
 };
 
 export type GatewayRequestOptions = {

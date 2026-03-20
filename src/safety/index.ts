@@ -32,3 +32,9 @@ export {
   type KillSwitchConfig,
   type KillSwitchState,
 } from "./kill-switch.js";
+export {
+  createSafetyGateway,
+  type SafetyGateway,
+  type SafetyGatewayConfig,
+  type SafetyCheckResult,
+} from "./gateway-integration.js";

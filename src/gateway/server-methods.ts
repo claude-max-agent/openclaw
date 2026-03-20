@@ -132,6 +132,21 @@ export async function handleGatewayRequest(
       return;
     }
   }
+  // Safety gateway チェック（トレーディングBot暴走防止）
+  if (context.safetyGateway) {
+    const safetyResult = context.safetyGateway.checkRequest();
+    if (!safetyResult.allowed) {
+      context.logGateway.warn(
+        `safety blocked method=${req.method} module=${safetyResult.module} reason=${safetyResult.reason}`,
+      );
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `safety: ${safetyResult.reason}`),
+      );
+      return;
+    }
+  }
   const handler = opts.extraHandlers?.[req.method] ?? coreGatewayHandlers[req.method];
   if (!handler) {
     respond(
