@@ -272,6 +272,20 @@ export function attachGatewayWsMessageHandler(params: {
     }
 
     const text = rawDataToString(data);
+
+    // Safety: トレーディングコンテンツフィルタ（暴走防止）
+    const safetyCtx = params.buildRequestContext().safetyGateway;
+    if (safetyCtx) {
+      const safetyResult = safetyCtx.checkIncomingMessage(text);
+      if (!safetyResult.allowed) {
+        logWs.warn(
+          `safety blocked ws message conn=${connId} module=${safetyResult.module} reason=${safetyResult.reason}`,
+        );
+        close(1008, "safety: message blocked");
+        return;
+      }
+    }
+
     try {
       const parsed = JSON.parse(text);
       const frameType =
